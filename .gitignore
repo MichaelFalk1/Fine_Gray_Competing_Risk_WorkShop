@@ -1,2 +1,18 @@
 
 AGENTS.md
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+.cache/
+.validation/
+.workshop-build.py
+*.pyc
+*.tmp
+*.log
+.env
+.vscode/
+.idea/
+data/
+models/
+outputs/

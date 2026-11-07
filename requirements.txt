@@ -1,0 +1,12 @@
+# Core workshop; exact locally tested versions are recorded in README.md.
+# TensorFlow is optional and installed explicitly in a compatible runtime.
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+lifelines
+ipykernel
+nbformat
+nbclient
+pytest
