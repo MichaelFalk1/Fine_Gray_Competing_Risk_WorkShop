@@ -157,3 +157,111 @@ def test_optional_tensorflow(ws):
         loss = ws['tf_fg_loss'](tf, model(d[ws['FEATURES']].to_numpy()), c, tf.constant(lw))
     gradients = tape.gradient(loss, model.trainable_variables)
     assert all(g is not None and np.isfinite(g.numpy()).all() for g in gradients)
+
+
+def test_prototype_full_coverage_and_inclusion(ws):
+    d = pd.DataFrame({'subject_id': range(5), 'time': [1., 2., 3., 4., 5.],
+                      'event': [1, 2, 1, 2, 0]})
+    cases, _, lw = ws['fg_design'](d)
+    for mode, m, q in [('CC', 2, 1.), ('NCC', 100, .25)]:
+        design = ws['prototype_design'](d, mode, m, q)
+        np.testing.assert_array_equal(design['ids'], d.subject_id)
+        np.testing.assert_array_equal(design['cases'], cases)
+        np.testing.assert_allclose(design['logw'], lw)
+        assert design['zero_support'] == 0
+    ncc = ws['prototype_design'](d, 'NCC', m=1)
+    # Last two noncases eligible in draws of size 4 and 2.
+    np.testing.assert_allclose(ncc['pi'], [1., .25, 1., .625, .625])
+    cc = ws['prototype_design'](d, 'CC', q=.4)
+    np.testing.assert_allclose(cc['pi'], [1., .4, 1., .4, .4])
+    eta = np.linspace(-.2, .2, len(ncc['ids']))
+    _, gradient = ws['fg_loss_score'](eta, ncc['cases'], ncc['logw'])
+    eps = 1e-6
+    numerical = [(ws['fg_loss_score'](eta+eps*e, ncc['cases'], ncc['logw'])[0]
+                  -ws['fg_loss_score'](eta-eps*e, ncc['cases'], ncc['logw'])[0])/(2*eps)
+                 for e in np.eye(len(eta))]
+    np.testing.assert_allclose(gradient, numerical, atol=1e-8)
+
+
+def test_prototype_zero_support_and_cases_only(ws):
+    d = pd.DataFrame({'subject_id': range(4), 'time': [1., 2., 3., 4.], 'event': [2, 1, 0, 1]})
+    design = ws['prototype_design'](d, 'NCC', m=100)
+    assert design['zero_support'] == 1
+    assert design['pi'][0] == 0
+    assert 0 not in design['ids']
+    for mode, m, q in [('NCC', 0, .25), ('CC', 2, 0.), ('CC', 2, .01)]:
+        with pytest.raises(ValueError, match='cases-only'):
+            ws['prototype_design'](d, mode, m=m, q=q)
+
+
+def test_optional_prototype_training_and_hidden_features(ws):
+    tf = pytest.importorskip('tensorflow')
+    tf.keras.utils.set_random_seed(8)
+    initial = ws['build_model'](tf).get_weights()
+    d, _ = ws['simulate_cohort'](60)
+    holdout, _ = ws['simulate_cohort'](10, seed=98)
+    design = ws['prototype_design'](d, 'CC', q=.4)
+    measured = ws['measured_view'](d, set(design['ids']))
+    a = ws['fit_sampled_prototype'](tf, measured, design, holdout[ws['FEATURES']], initial, 2, .01)
+    # Unmeasured feature values cannot affect training or preprocessing.
+    measured.loc[~measured.subject_id.isin(design['ids']), ws['FEATURES']] = 1e99
+    b = ws['fit_sampled_prototype'](tf, measured, design, holdout[ws['FEATURES']], initial, 2, .01)
+    np.testing.assert_allclose(a['scores'], b['scores'], atol=1e-10)
+    assert a['model'].count_params() == 361
+    assert np.isfinite(a['history']).all()
+    full = ws['prototype_design'](d, 'CC', q=1.)
+    complete = ws['fit_sampled_prototype'](tf, d, full, holdout[ws['FEATURES']], initial, 2, .01)
+    # Independently reproduce the full-risk loop to check q=1 recovery.
+    scaler = ws['StandardScaler']().fit(d[ws['FEATURES']])
+    x = tf.constant(scaler.transform(d[ws['FEATURES']]), dtype=tf.float64)
+    model = ws['build_model'](tf); model.set_weights(initial)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=.01)
+    cases, _, lw = ws['fg_design'](d)
+    for _ in range(2):
+        with tf.GradientTape() as tape:
+            loss = ws['tf_fg_loss'](tf, model(x), cases, tf.constant(lw))
+        optimizer.apply_gradients(zip(tape.gradient(loss, model.trainable_variables), model.trainable_variables))
+    expected = model(scaler.transform(holdout[ws['FEATURES']])).numpy().ravel()
+    np.testing.assert_allclose(complete['scores'], expected, atol=1e-10)
+
+
+def test_prototype_cif_hand_calculation_and_shift(ws):
+    # Four uncensored people: stroke, death, stroke, death; all measured.
+    d = pd.DataFrame({'subject_id': range(4), 'time': [1., 2., 3., 4.], 'event': [1, 2, 1, 2]})
+    design = ws['prototype_design'](d, 'CC', q=1.)
+    query = np.array([0., 1., 2., 3., 4.])
+    training = np.log([1., 1., 2., 2.])
+    prediction = np.log([1., 2.])
+    # Denominators 6 at first stroke, 5 at second (prior death retained).
+    baseline = np.array([0., 1/6, 1/6, 1/6+1/5, 1/6+1/5])
+    expected = -np.expm1(-np.array([1., 2.])[:, None]*baseline)
+    actual = ws['prototype_cif'](design, training, prediction, query)
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+    shifted = ws['prototype_cif'](design, training+10000, prediction+10000, query)
+    np.testing.assert_allclose(shifted, actual, atol=1e-11)
+    # An illustrative two-person sample with inclusion weights 1 and 1/0.5.
+    toy = {'times': np.array([1.]), 'logw': np.log([[1., 2.]])}
+    np.testing.assert_allclose(ws['prototype_cif'](toy, [0., 0.], [0.], [0., 1.]),
+                               [[0., -np.expm1(-1/3)]])
+
+
+def test_prototype_cif_full_coverage_matches_reference_and_bounds(ws):
+    d, _ = ws['simulate_cohort'](80)
+    x = d[ws['FEATURES']].to_numpy()
+    fit = ws['fit_linear_fg'](d, x)
+    query = np.linspace(0, d.time.max(), 40)
+    design = ws['prototype_design'](d, 'CC', q=1.)
+    actual = ws['prototype_cif'](design, x@fit['coef'], x[:4]@fit['coef'], query)
+    expected = ws['predict_fg'](fit['times'], fit['baseline'], x[:4]@fit['coef'], query)
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+    for mode in ['NCC', 'CC']:
+        selected = ws['prototype_design'](d, mode, m=2, q=.25)
+        # Fixed numerical scores test the prediction algebra, not a trained DNN.
+        scores = np.linspace(-1, 1, len(selected['ids']))
+        values = ws['prototype_cif'](selected, scores, [-2., 0., 2.], query)
+        assert np.isfinite(values).all()
+        assert ((values >= 0) & (values <= 1)).all()
+        assert (np.diff(values, axis=1) >= -1e-12).all()
+        assert (values[:, 0] == 0).all()
+    with pytest.raises(ValueError, match='finite'):
+        ws['prototype_cif'](design, np.full(len(d), np.nan), [0.], query)

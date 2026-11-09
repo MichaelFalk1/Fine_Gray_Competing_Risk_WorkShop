@@ -6,7 +6,8 @@ One notebook contains every teaching helper; no local project imports or dataset
 
 **Available now:** simulation, CIFs, cause-specific Cox, weighted Fine–Gray risk-set
 walkthroughs, reference-checked full-risk linear Fine–Gray regression, NCC/case-cohort
-sampling visuals and cost experiments, and an optional tiny TensorFlow exercise.
+sampling visuals and cost experiments, an optional tiny TensorFlow exercise, and
+instructor-requested conceptual NCC/CC neural score prototypes.
 **Not yet validated:** TensorFlow execution in a compatible runtime, sampled neural
 Fine–Gray fitting, and an actual GitHub → free Colab Run All.
 
@@ -77,6 +78,18 @@ No slides or sophisticated web UI are part of this repository.
 
 ### Completed numerical evidence
 
+Prototype update (2026-11-09): **18 tests passed, 2 TensorFlow tests skipped**.
+A fresh-kernel fast-mode Run All passed (42 cells, 14 figures), with neural paths
+explicitly skipped because TensorFlow is unavailable. New tests cover exact NCC
+ever-inclusion probabilities, CC probabilities, full-coverage objective recovery,
+finite-difference prototype gradients, zero-support detection, and cases-only guards.
+The illustrative CIF calculation passes hand-calculated baseline/link checks,
+score-shift invariance, full-coverage agreement with the reference-checked linear
+FG predictions, and bounds/monotonicity checks. These are numerical checks, not
+validation of sampled population CIF estimation.
+The optional TensorFlow test also checks hidden-feature isolation and CC fraction-1
+training recovery, but those checks remain unexecuted here.
+
 - Deterministic synthetic data and analytical conditional CIF checks.
 - Hand-calculated Cox/FG membership, no-censoring retention, censored retention,
   reverse-KM comparison with lifelines, and the 0.72/0.90 example.
@@ -133,14 +146,14 @@ versions and outputs. Passing runtime checks alone does not establish neural inf
 theory or calibration. The output bias is unidentifiable in the partial likelihood and
 is absorbed by the baseline; sigmoid(score) is never used as a CIF.
 
-### Sampled neural fits: blocked by estimator validation
+### Sampled neural prototypes; statistical estimator validation still blocked
 
 | Mode | Current state | Concrete next work |
 |---|---|---|
 | Full-risk linear FG | Reference-checked educational fit | Broader simulation checks if extending scope |
 | Full-risk neural FG | Implemented, opt-in; runtime verification pending | Execute on compatible TensorFlow CPU runtime |
-| NCC neural FG | Sampling-only | Derive design-specific event, retention and inclusion contributions; benchmark before neural adaptation |
-| Case-cohort neural FG | Sampling-only | Implement and validate a published case-cohort subdistribution score and baseline; justify neural substitution |
+| NCC neural prototype | Implemented conceptual score fit; not a validated FG estimator | Derive design-specific event, retention and inclusion contributions; benchmark before neural adaptation |
+| Case-cohort neural prototype | Implemented conceptual score fit; not a validated FG estimator | Implement and validate a published case-cohort subdistribution score and baseline; justify neural substitution |
 
 [Wolkewitz et al. (2014)](https://doi.org/10.1097/EDE.0000000000000029) describe an NCC
 subdistribution sampling method. Its existence does not validate our ordinary event-free
@@ -149,6 +162,40 @@ must be reconciled before implementation. [Kim et al. (2020)](https://doi.org/10
 provide a case-cohort proportional subdistribution method; a generic Cox case-cohort
 loss or universal `1/pi` substitution is not an implementation of that method.
 Neural adaptation and design-specific uncertainty remain unverified for both modes.
+
+The instructor has explicitly requested didactic approximations. Set
+`TRAIN_SAMPLED_PROTOTYPES=True` together with `TRAIN_NEURAL=True` to run them.
+They substitute the same 361-parameter neural score into the conceptual denominator
+`sum(selected q_i(t) * exp(score_i) / pi_i)` and minimize mean log-denominator
+minus case score. This is **PROTOTYPE / NOT VALIDATED — NOT A STATISTICAL
+FINE–GRAY ESTIMATOR**, not an implementation of either published sampled estimator.
+
+For CC, cases have inclusion probability 1 and noncases have the actual fixed-size
+baseline fraction. For ordinary NCC, noncase probability of ever being selected is
+`1 - product(1 - p_ik)` across independent case-time draws, conditional on observed
+training outcomes; cases have probability 1. Early competing deaths can have zero
+inclusion probability: the notebook reports their count and labels the resulting
+restricted denominator as unable to represent the full risk set. Even complete
+ordinary NCC event-time coverage cannot recover people with zero inclusion support.
+No clipping or invented inclusion probabilities repair that gap.
+
+Each fit gets only its measured training features and fits its own scaler. Full
+training outcomes supply censoring weights; holdout features are used only for
+score evaluation. Same architecture, initial weights, Adam rate, and epochs are
+used. CC fraction 1 recovers the full-risk construction; NCC complete coverage
+recovers it only when every contributing person has inclusion support.
+
+The table reports actual training-loop wall time on CPU and held-out centered-score
+MAE versus the full-risk neural score. This measures score disagreement, not truth
+or probability accuracy. An instructor-requested illustrative CIF panel uses each prototype's own baseline
+jumps (reciprocal weighted training denominators) and the subdistribution link.
+One CIF panel compares the same evaluation group across full-risk neural FG, NCC,
+CC and simulation truth. Its legend shows controls per case and the baseline subcohort
+fraction; curves average individual predictions over that common group. This numerically checked plug-in calculation does not
+validate sampled population probabilities; the NCC coverage gap remains. Sampled
+CIF MAE stays explicitly unavailable rather than implying validated prediction. Loss levels can differ and are not a method ranking.
+The new TensorFlow paths still require execution in a compatible environment;
+Python 3.14 in this workspace has no TensorFlow. No sampled runtime is fabricated.
 
 All source-cohort outcomes are observed. NCC measures all stroke cases plus selected
 controls; CC measures one baseline subcohort plus all stroke cases. Death/censoring
@@ -201,7 +248,8 @@ default parameters. After edits, rerun or clear outputs to avoid stale figures.
 - [x] M2: risk sets, censoring weights, Cox and reference-checked linear FG.
 - [x] M3: NCC/CC selection, diagrams, cost experiments and tests.
 - [ ] M4: neural code complete; compatible-runtime execution still required.
-- [ ] M5: design-specific sampled neural fitting blocked; sampling lessons complete.
+- [ ] M5: conceptual NCC/CC score prototypes implemented at instructor request;
+  TensorFlow execution and design-specific statistical validation remain pending.
 - [x] M6 local core: learner prompts, fast mode, tests, figures and troubleshooting.
 - [ ] Instructor: publish public repository and add real Colab badge.
 - [ ] Instructor: fresh free Colab CPU Run All from GitHub, including visual review.
