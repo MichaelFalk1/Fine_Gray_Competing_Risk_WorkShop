@@ -27,7 +27,7 @@ This project has not configured a remote, created a repository, committed, or pu
    installation cell. Packages installed on your laptop are not installed in Colab.
 3. Choose **Runtime → Run all**. Use **Shift+Enter** for individual cells.
 4. Change parameters near the top, then restart and Run All to reset the experiment.
-5. For a shorter session, set `FAST_MODE=True`. Keep `TRAIN_NEURAL=False` for the core path.
+5. For a shorter session, set `FAST_MODE=True`. Keep `TRAIN_NEURAL=True` for the core path.
 
 Colab needs internet and a normal free account; installations are per remote session.
 Free resources can disconnect and are not guaranteed. No credentials, Drive mounts,
