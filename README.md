@@ -226,34 +226,6 @@ tuning, fake confidence bands or fabricated sampled predictions are included.
 Requirements are not speculatively pinned across platforms. In particular, lifelines
 selected pandas 2.3.3 inside the project environment without changing system pandas.
 
-## Tests and conference rehearsal
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_workshop.py -q
-.\.venv\Scripts\python.exe tests/execute_notebook.py
-.\.venv\Scripts\python.exe tests/execute_notebook.py --fast --neural --zero-sampling
-```
-
-Tests read definitions directly from the canonical notebook. `pycmprsk` and TensorFlow
-tests skip explicitly when absent. To reproduce the optional external reference check,
-install `pycmprsk==1.0.0` in a compatible development environment. The Run All script
-uses a fresh kernel and saves its executed copy/PNG previews only under ignored
-`.validation/`; this is test output, not a second participant source.
-
-Saved outputs in `workshop.ipynb` are instructor fallback examples from the printed
-default parameters. After edits, rerun or clear outputs to avoid stale figures.
-
-- [x] M0: self-contained skeleton, setup, local/Colab instructions.
-- [x] M1: simulation, timelines, counts, Aalen–Johansen/KM.
-- [x] M2: risk sets, censoring weights, Cox and reference-checked linear FG.
-- [x] M3: NCC/CC selection, diagrams, cost experiments and tests.
-- [ ] M4: neural code complete; compatible-runtime execution still required.
-- [ ] M5: conceptual NCC/CC score prototypes implemented at instructor request;
-  TensorFlow execution and design-specific statistical validation remain pending.
-- [x] M6 local core: learner prompts, fast mode, tests, figures and troubleshooting.
-- [ ] Instructor: publish public repository and add real Colab badge.
-- [ ] Instructor: fresh free Colab CPU Run All from GitHub, including visual review.
-- [ ] Instructor: neural CPU rehearsal and tested TensorFlow/Keras versions.
 
 ## Troubleshooting
 
